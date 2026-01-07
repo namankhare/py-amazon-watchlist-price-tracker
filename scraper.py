@@ -45,22 +45,28 @@ async def scrape_amazon_watchlist(url):
                     item_id = await element.get_attribute("data-itemid")
                     price_str = await element.get_attribute("data-price")
                     
-                    # Extract name from the nested <a> tag's title attribute or text
-                    # Based on user's snippet: h2 a.a-link-normal
+                    # Extract name and URL from the nested <a> tag using title attribute or text
                     name = "Unknown"
+                    url = "Unknown"
                     name_link = await element.query_selector("h2 a.a-link-normal")
                     if name_link:
                         name = await name_link.get_attribute("title")
                         if not name:
                             name = await name_link.inner_text()
                         name = name.strip()
+                        
+                        href = await name_link.get_attribute("href")
+                        if href:
+                            # Prepend amazon domain if it's a relative URL
+                            if href.startswith('/'):
+                                url = f"https://www.amazon.in{href}"
+                            else:
+                                url = href
 
-                    # Handle missing item_id by looking for ASIN in the link
+                    # Handle missing item_id by looking for ASIN in the link if not already found
                     if not item_id or item_id == "null":
-                        link = await element.query_selector("a.a-link-normal")
-                        if link:
-                            href = await link.get_attribute("href")
-                            asin_match = re.search(r'/dp/([A-Z0-9]{10})', href)
+                        if url != "Unknown":
+                            asin_match = re.search(r'/dp/([A-Z0-9]{10})', url)
                             if asin_match:
                                 item_id = asin_match.group(1)
 
@@ -73,7 +79,8 @@ async def scrape_amazon_watchlist(url):
                         items.append({
                             "item_id": item_id,
                             "name": name,
-                            "price": price
+                            "price": price,
+                            "url": url
                         })
                 except Exception as e:
                     print(f"Error parsing item: {e}")
@@ -95,4 +102,4 @@ if __name__ == "__main__":
         results = asyncio.run(scrape_amazon_watchlist(test_url))
         print(f"\nScraped {len(results)} items:")
         for res in results:
-            print(f"ID: {res['item_id']} | Price: ₹{res['price']} | Name: {res['name'][:50]}...")
+            print(f"ID: {res['item_id']} | Price: ₹{res['price']} | Name: {res['name'][:30]}... | URL: {res['url'][:30]}...")
