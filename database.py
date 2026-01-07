@@ -27,7 +27,7 @@ def init_db():
 def upsert_product(item_data):
     """
     Inserts a new product or updates an existing one.
-    If the current price is lower than the lowest recorded price, updates lowest price.
+    Returns a dict with status and price info for notifications.
     """
     conn = get_connection()
     cursor = conn.cursor()
@@ -39,8 +39,18 @@ def upsert_product(item_data):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     # Check if item exists
-    cursor.execute("SELECT lowest_price FROM products WHERE item_id = ?", (item_id,))
+    cursor.execute("SELECT current_price, lowest_price FROM products WHERE item_id = ?", (item_id,))
     row = cursor.fetchone()
+
+    result = {
+        "item_id": item_id,
+        "name": name,
+        "new_price": price,
+        "old_price": 0,
+        "lowest_price": price,
+        "status": "new_item",
+        "url": url
+    }
 
     if row is None:
         # New item
@@ -51,26 +61,49 @@ def upsert_product(item_data):
         print(f"Added new product: {name[:30]}... at ₹{price}")
     else:
         # Existing item
-        lowest_price = row[0]
+        old_price, lowest_price = row
+        result["old_price"] = old_price
+        result["lowest_price"] = lowest_price
+
         if price < lowest_price:
             # New all-time low!
+            status = "new_lowest"
             cursor.execute('''
                 UPDATE products 
                 SET current_price = ?, current_date = ?, lowest_price = ?, lowest_date = ?, name = ?, url = ?
                 WHERE item_id = ?
             ''', (price, now, price, now, name, url, item_id))
             print(f"New lowest price for {name[:30]}...! recorded: ₹{price}")
-        else:
-            # Just update current price
+            result["lowest_price"] = price
+        elif price < old_price:
+            status = "price_decrease"
             cursor.execute('''
                 UPDATE products 
                 SET current_price = ?, current_date = ?, name = ?, url = ?
                 WHERE item_id = ?
             ''', (price, now, name, url, item_id))
-            print(f"Updated current price for {name[:30]}... at ₹{price}")
+            print(f"Price dropped for {name[:30]}... from ₹{old_price} to ₹{price}")
+        elif price > old_price:
+            status = "price_increase"
+            cursor.execute('''
+                UPDATE products 
+                SET current_price = ?, current_date = ?, name = ?, url = ?
+                WHERE item_id = ?
+            ''', (price, now, name, url, item_id))
+            print(f"Price increased for {name[:30]}... from ₹{old_price} to ₹{price}")
+        else:
+            status = "no_change"
+            cursor.execute('''
+                UPDATE products 
+                SET current_date = ?, name = ?, url = ?
+                WHERE item_id = ?
+            ''', (now, name, url, item_id))
+
+        result["status"] = status
 
     conn.commit()
     conn.close()
+    return result
 
 def get_all_products():
     conn = get_connection()

@@ -1,6 +1,7 @@
 import asyncio
 from scraper import scrape_amazon_watchlist
 from database import init_db, upsert_product, get_all_products
+from notifier import send_discord_notification
 from config import WISH_LIST_URL
 
 async def main():
@@ -19,9 +20,20 @@ async def main():
 
     print(f"Scraped {len(products)} products. updating database...")
     
-    # Update database
+    # Update database and notify
     for product in products:
-        upsert_product(product)
+        update_result = upsert_product(product)
+        
+        # Notify if something interesting happened
+        if update_result["status"] != "no_change":
+            send_discord_notification(
+                update_result["name"],
+                update_result["old_price"],
+                update_result["new_price"],
+                update_result["lowest_price"],
+                update_result["url"],
+                update_result["status"]
+            )
         
     print("\n--- Current Tracker Status ---")
     all_items = get_all_products()
