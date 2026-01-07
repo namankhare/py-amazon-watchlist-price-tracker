@@ -2,7 +2,7 @@
 
 A powerful, automatic price monitoring program that uses Playwright to scrape your Amazon Watchlist, keeps pricing history in SQLite, and instantly notifies Discord of price changes.
 
-Read the full article [here](https://blog.namankhare.com/scrape-prices-from-my-amazon-watchlist/).
+Read the full article [here](https://blog.namankhare.com/price-tracker-for-amazon-watchlist-custom-solution/).
 
 ## Features
 
